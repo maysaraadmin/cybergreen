@@ -34,7 +34,6 @@ services:
       - OS_PORT=9200
     ports:
       - $ARKIME_PORT:8005
-      - "7008:8005"
     volumes:
       - arkime_config:/data/config
       - arkime_logs:/data/logs
