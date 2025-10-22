@@ -275,7 +275,251 @@ The CyberBlue Portal provides a secure, unified interface for managing your secu
 
 ---
 
-## 🐳 Architecture
+## 🐳 Modular Docker Compose Structure
+
+CyberBlue now supports a **modular Docker Compose architecture** that allows you to organize services into logical groups. This makes it easier to manage, customize, and deploy specific components of the platform.
+
+### 📁 **New Directory Structure**
+
+```
+├── compose/                    # Individual service compose files
+│   ├── networks.yml           # Shared networks configuration
+│   ├── volumes.yml            # Shared volumes configuration
+│   ├── core-services.yml      # Core services (portal, portainer, mitre-navigator, cyberchef)
+│   ├── monitoring-services.yml # Security monitoring (suricata, evebox, wireshark)
+│   ├── threat-intelligence.yml # Threat intel tools (velociraptor, caldera)
+│   ├── misp-stack.yml         # MISP platform stack
+│   ├── siem-services.yml      # SIEM services (OpenSearch, Arkime, Elasticsearch)
+│   ├── soar-services.yml      # SOAR services (TheHive, Cortex)
+│   ├── edr-services.yml       # EDR services (Fleet)
+│   ├── wazuh-stack.yml        # Wazuh security platform
+│   └── shuffle-stack.yml      # Shuffle SOAR platform
+├── docker-compose.yml         # Main compose file (includes all services)
+├── docker-compose.override.yml # Override file for customizations
+└── README.md                  # This file
+```
+
+### 🔧 **Service Organization**
+
+| **Service Group** | **Components** | **Purpose** |
+|-------------------|----------------|-------------|
+| **Core Services** | Portal, Portainer, MITRE Navigator, CyberChef | Essential management and utility tools |
+| **Monitoring** | Suricata, EveBox, Wireshark | Network traffic analysis and intrusion detection |
+| **Threat Intel** | Velociraptor, Caldera | Digital forensics and adversary emulation |
+| **MISP Stack** | MISP Core, Database, Redis, Mail | Threat intelligence platform |
+| **SIEM Services** | OpenSearch, Arkime, Elasticsearch | Log analysis and search |
+| **SOAR Services** | TheHive, Cortex | Security orchestration and incident response |
+| **EDR Services** | Fleet, Database, Redis | Endpoint detection and response |
+| **Wazuh Stack** | Manager, Indexer, Dashboard, Certs | Host-based intrusion detection |
+| **Shuffle Stack** | Frontend, Backend, Orborus, OpenSearch | Security automation platform |
+
+### 🚀 **Usage Options**
+
+#### **Start All Services (Default)**
+```bash
+docker-compose up -d
+```
+
+#### **Start Specific Service Groups**
+```bash
+# Core services only
+docker-compose -f compose/core-services.yml -f compose/networks.yml -f compose/volumes.yml up -d
+
+# MISP stack only
+docker-compose -f compose/misp-stack.yml -f compose/networks.yml -f compose/volumes.yml up -d
+
+# Wazuh stack only
+docker-compose -f compose/wazuh-stack.yml -f compose/networks.yml -f compose/volumes.yml up -d
+```
+
+#### **Start Multiple Groups**
+```bash
+# SIEM + SOAR services
+docker-compose -f compose/siem-services.yml -f compose/soar-services.yml -f compose/networks.yml -f compose/volumes.yml up -d
+```
+
+### ⚙️ **Customization**
+
+#### **Override Configuration**
+Create `docker-compose.override.yml` to customize without modifying main files:
+
+```yaml
+services:
+  portal:
+    environment:
+      - SECRET_KEY=your-custom-secret-key
+
+  misp-core:
+    ports:
+      - "8080:443"  # Change MISP port
+```
+
+#### **Environment Variables**
+Set custom environment variables in `.env` file:
+
+```bash
+# MISP Configuration
+MYSQL_PASSWORD=your_mysql_password
+REDIS_PASSWORD=your_redis_password
+
+# Fleet Configuration
+FLEET_MYSQL_PASSWORD=your_fleet_password
+
+# OpenSearch Configuration
+OS_VERSION=1.3.6
+OS_JAVA_MEM=2g
+```
+
+### 🛠️ **Management Commands**
+
+#### **View Service Status**
+```bash
+# Check all services
+docker-compose ps
+
+# Check specific group
+docker-compose -f compose/misp-stack.yml ps
+```
+
+#### **View Logs**
+```bash
+# All services
+docker-compose logs -f
+
+# Specific service
+docker-compose logs -f misp-core
+docker-compose logs -f wazuh.manager
+```
+
+#### **Restart Services**
+```bash
+# Restart all
+docker-compose restart
+
+# Restart specific group
+docker-compose -f compose/core-services.yml restart
+
+# Restart single service
+docker-compose restart portal
+```
+
+#### **Update Services**
+```bash
+# Pull new images
+docker-compose pull
+
+# Rebuild and restart
+docker-compose up -d --build
+```
+
+### 🔍 **Troubleshooting Modular Setup**
+
+#### **Common Issues**
+
+1. **Missing Dependencies**: Some services require others to start first
+   ```bash
+   # Check dependencies in compose files
+   docker-compose -f compose/misp-stack.yml config
+   ```
+
+2. **Port Conflicts**: Verify ports are available
+   ```bash
+   # Check used ports
+   netstat -tulpn | grep :700
+   ```
+
+3. **Volume Issues**: Ensure volumes are created
+   ```bash
+   # List volumes
+   docker volume ls
+
+   # Inspect specific volume
+   docker volume inspect mysql_data
+   ```
+
+#### **Service Dependencies**
+
+| **Service** | **Depends On** | **Health Check** |
+|-------------|----------------|------------------|
+| MISP Core | Database, Redis, MISP Modules | `curl -ks https://localhost/users/heartbeat` |
+| Fleet | MySQL, Redis | Database connectivity |
+| Wazuh | Certificate Generator | SSL certificate creation |
+| Shuffle | Backend service | API availability |
+
+### 📊 **Resource Planning**
+
+#### **Memory Requirements by Group**
+- **Core Services**: ~2GB
+- **MISP Stack**: ~4GB (PHP + Database intensive)
+- **SIEM Services**: ~3GB (Elasticsearch/OpenSearch)
+- **Wazuh Stack**: ~3GB (Java processes)
+- **Monitoring**: ~1GB (Network tools)
+
+#### **Storage Planning**
+- **Database volumes**: 20GB+ (MySQL, OpenSearch data)
+- **Log volumes**: 10GB+ (Application and system logs)
+- **Configuration**: 1GB (Tool configurations)
+
+### 🔄 **Migration from Single Compose**
+
+If you have an existing single `docker-compose.yml` setup:
+
+1. **Backup your current setup**
+   ```bash
+   cp docker-compose.yml docker-compose.backup.yml
+   ```
+
+2. **Replace with modular structure**
+   ```bash
+   # The new docker-compose.yml automatically includes all modular files
+   docker-compose up -d
+   ```
+
+3. **Verify all services start**
+   ```bash
+   docker-compose ps
+   ```
+
+### 🎯 **Best Practices**
+
+1. **Start with core services** for initial setup
+2. **Add service groups** incrementally based on needs
+3. **Use override file** for customizations
+4. **Monitor resource usage** before adding more services
+5. **Regular backups** of volumes and configurations
+6. **Test thoroughly** when making changes
+
+### 📚 **Advanced Configuration**
+
+#### **Custom Networks**
+Add custom networks in `docker-compose.override.yml`:
+
+```yaml
+networks:
+  custom-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+```
+
+#### **Resource Limits**
+Set resource constraints for specific services:
+
+```yaml
+services:
+  misp-core:
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 2G
+          cpus: '1.0'
+```
+
+This modular approach provides flexibility while maintaining the comprehensive functionality of the CyberBlue platform!
 
 CyberBlue uses a microservices architecture with Docker Compose:
 
